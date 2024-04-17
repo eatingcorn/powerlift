@@ -30,19 +30,18 @@ raw_data <- read_csv("data/raw_data/raw_powerlifting_data.csv")
 cleaned_data <- raw_data %>% clean_names() %>%
   
   # Rid of the non-tested and Disqualified individuals
-  filter(!is.na(tested) & tested != "" & place != "DQ" & age_class != "12-May") %>%
+  filter(!is.na(tested) & tested != "" & place != "DQ" & age_class != "12-May" & sex != "Mx") %>%
   
   # Select columns for analysis
   select(sex, equipment, age, age_class, 
          bodyweight_kg, weight_class_kg, best3squat_kg, 
-         best3bench_kg, best3deadlift_kg, wilks) %>%
+         best3bench_kg, best3deadlift_kg, total_kg, wilks) %>%
 
   
   mutate(
     sex = case_when(
       sex == "F" ~ "Female",
       sex == "M" ~ "Male",
-      sex == "Mx" ~ "Mixed",
     ),
     # Apply the grouping to weight class
     weight_class_kg = map_weightclass_to_broader_category(weight_class_kg)
