@@ -1,13 +1,13 @@
 ---
-title: "My title"
+title: "Exploring Performance Factors in Powerlifting"
 subtitle: "My subtitle if needed"
 author: 
   - First author
   - Another author
-thanks: "Code and data are available at: LINK."
+thanks: "Code and data are available at: https://github.com/eatingcorn/powerlift"
 date: today
 date-format: long
-abstract: "First sentence. Second sentence. Third sentence. Fourth sentence."
+abstract: "..."
 format: pdf
 number-sections: true
 bibliography: references.bib
@@ -19,60 +19,56 @@ bibliography: references.bib
 #| message: false
 
 library(tidyverse)
-library(palmerpenguins)
+library(arrow)
+library(knitr)
+
+data <- read_parquet("../data/analysis_data/powerlifting_analysis_data.parquet")
 ```
 
 
 # Introduction
 
-You can and should cross-reference sections and sub-sections. We use @citeR and @rohan.
-
-The remainder of this paper is structured as follows. @sec-data....
+...
 
 
 
 # Data {#sec-data}
 
-Some of our data is of penguins (@fig-bills), from @palmerpenguins.
+## Dataset
+
+The data set used in this paper is obtained from OpenPowerlifting (cite). The data is a compilation and standardization of meet data within the sport of powerlifting across an variety of different meets. For example, "World Powerlifting", "Internation Powerlifting Federation", "National Powerlifting Leauge", etc. Organizers of the meets, record their sex, age, weight and lifts performed by each competitor and this data is often made publicly available online.
 
 ```{r}
-#| label: fig-bills
-#| fig-cap: Bills of penguins
-#| echo: false
-
-ggplot(penguins, aes(x = island, fill = species)) +
-  geom_bar(alpha = 0.8) +
-  scale_fill_manual(values = c("darkorange","purple","cyan4"),
-                    guide = "none") +
-  theme_minimal() +
-  facet_wrap(~species, ncol = 1) +
-  coord_flip()
-```
-
-Talk more about it.
-
-And also planes (@fig-planes). (You can change the height and width, but don't worry about doing that until you have finished every other aspect of the paper - Quarto will try to make it look nice and the defaults usually work well once you have enough text.)
-
-```{r}
-#| label: fig-planes
-#| fig-cap: Relationship between wing length and width
+#| label: tbl-dataset-preview
+#| tbl-cap: Preview of the cleaned dataset From OpenPowerlifting.
 #| echo: false
 #| warning: false
 #| message: false
 
-analysis_data <- read_csv(here::here("data/analysis_data/analysis_data.csv"))
-
-analysis_data |> 
-  ggplot(aes(x = width, y = length)) +
-  geom_point(alpha = 0.8) +
-  theme_minimal() +
-  labs(x = "Wing width (mm)",
-       y = "Wing length (mm)")
+data |> 
+  select(sex, age_class, weight_class_kg, best3bench_kg, best3squat_kg, best3deadlift_kg, total_kg, wilks) |>
+  head() |>
+  kable()
 ```
 
-Talk way more about it. 
+
+The dataset was filtered to contain only individuals that are tested and have not been disqualified to ensure the integrity of the data for the analysis. The majority of attributes in the original dataset were not employed, as the primary focus of this paper lies in analyzing the factors contributing to strength gains in powerlifting. The cleaned dataset contains 8 attributes:
+
+1. `sex` - Denotes the lifter's gender, (Male or Female).
+2. `age_class` - Denotes the lifter's age category.
+3. `weight_class_kg` - Denotes the lifter's weight category (in kilograms).
+4. `best3bench_kg`- Denotes the lifter's best bench press weight (out of 3 attempts, in kilograms).
+5. `equipment` - Denotes the lifter's equipment used in the lift (Wraps, Raw, Unlimited, Single-py, Multi-py).
+6. `best3squat_kg` -  Denotes the lifter's best squat weight (out of 3 attempts, in kilograms).
+7. `best3deadlift_kg` - Denotes the lifter's best deadlift weight (out of 3 attempts, in kilograms).
+8. `total_kg` - Denotes the lifter's total weight lifted based on the best 3 bench, squat, and deadlift.
+9. `wilks` - Denotes the lifter's Wilks score, which is calculated based on sex, weight, and total
+weight lifted.
 
 
+The `total_kg` attribute was chosen as it is the estimand in this paper. The `sex` attribute was necessary as there are strength differences between males and females, and averaging the lifts and wilks score separately by sex allows for a more accurate representation of the data. The attributes `age_class` and `weight_class_kg` were chosen as they correlate with an individual's lifting capacity. The `best3bench_kg`, `best3squat_kg`, `best3deadlift_kg`, and `wilks` attributes are necessary to visualize the increases and/or decreases in each lift based on the correlated attributes.
+
+The analysis of the data set in (section), will be carried out using the R programming language [@citeR] and packages; tidyverse [@citeTidy], arrow [@citeArrow], and dplyr [@citeDplyr], we were able create simulations, clean the dataset and write tests. The figures and tables are generated using ggplot2 [@citeGgplot2] and knitr [@citeKnitr].
 
 # Model
 
@@ -82,61 +78,257 @@ Here we briefly describe the Bayesian analysis model used to investigate... Back
 
 ## Model set-up
 
-Define $y_i$ as the number of seconds that the plane remained aloft. Then $\beta_i$ is the wing width and $\gamma_i$ is the wing length, both measured in millimeters.  
+....
 
 \begin{align} 
 y_i|\mu_i, \sigma &\sim \mbox{Normal}(\mu_i, \sigma) \\
-\mu_i &= \alpha + \beta_i + \gamma_i\\
-\alpha &\sim \mbox{Normal}(0, 2.5) \\
-\beta &\sim \mbox{Normal}(0, 2.5) \\
-\gamma &\sim \mbox{Normal}(0, 2.5) \\
+\mu_i &= \beta_0 + \beta_1 \times sex_i + \beta_2 \times age_i + \beta_3 \times bodyweight_i + \beta_4 \dot equipment_i \\
+\beta_0 &\sim \mbox{Normal}(0, 2.5) \\
+\beta_1 &\sim \mbox{Normal}(0, 2.5) \\
+\beta_2 &\sim \mbox{Normal}(0, 2.5) \\
+\beta_3 &\sim \mbox{Normal}(0, 2.5) \\
+\beta_4 &\sim \mbox{Normal}(0, 2.5) \\
 \sigma &\sim \mbox{Exponential}(1)
 \end{align}
 
-We run the model in R [@citeR] using the `rstanarm` package of @rstanarm. We use the default priors from `rstanarm`.
+....
 
 
 ### Model justification
 
-We expect a positive relationship between the size of the wings and time spent aloft. In particular...
-
-We can use maths by including latex between dollar signs, for instance $\theta$.
+...
 
 
 # Results
 
-Our results are summarized in @tbl-modelresults.
+## Age Class, Bench, Squat, Deadlift
+
 
 ```{r}
-#| echo: false
-#| eval: true
+#| include: false
 #| warning: false
 #| message: false
 
-library(rstanarm)
 
-first_model <-
-  readRDS(file = here::here("models/first_model.rds"))
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+
+
+# Selecting relevant columns
+plot1 <- data %>% 
+  select(sex, age_class, best3bench_kg, best3squat_kg, best3deadlift_kg)
+
+# Convert age_class to a factor with desired level order
+plot1$age_class <- factor(plot1$age_class, levels = c("5-12", "13-15", "16-17", "18-19", "20-23", "24-34", "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74", "75-79", "80-999"))
+
+# Now sort the dataset
+plot1 <- plot1[order(plot1$age_class), ]
+
+# Calculate the average weight lifted by each age class and sex
+averages <- plot1 %>%
+  group_by(age_class, sex) %>%
+  summarise(
+    avg_bench_kg = mean(best3bench_kg),
+    avg_squat_kg = mean(best3squat_kg),
+    avg_deadlift_kg = mean(best3deadlift_kg)
+  )
+
+# Melt the data into long format
+melted_data <- reshape2::melt(averages, id.vars = c("age_class", "sex"), variable.name = "exercise")
+
+# Create separate plots for each sex category
+male_plot <- melted_data %>%
+  filter(sex == "Male") %>%
+  ggplot(aes(x = age_class, y = value, fill = exercise)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  labs(x = "Age Class", y = "Average Weight Lifted (kg)", fill = "Exercise") +
+  ggtitle("Average Weight Lifted by Age Class (Males)") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for better readability
+    axis.ticks.x = element_blank()  # Remove x-axis ticks
+  )
+
+female_plot <- melted_data %>%
+  filter(sex == "Female") %>%
+  ggplot(aes(x = age_class, y = value, fill = exercise)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  labs(x = "Age Class", y = "Average Weight Lifted (kg)", fill = "Exercise") +
+  ggtitle("Average Weight Lifted by Age Class (Females)") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for better readability
+    axis.ticks.x = element_blank()  # Remove x-axis ticks
+  )
+```
+
+
+```{r}
+#| label: fig-age1
+#| fig-cap: Average Bench, Squat, and Deadlift based on Age Class (Male)
+#| echo: false
+
+male_plot
+```
+
+
+
+```{r}
+#| label: fig-age2
+#| fig-cap: Average Bench, Squat, and Deadlift based on Age Class (Female)
+#| echo: false
+
+female_plot
+```
+
+## Weight Class, Bench, Squat, Deadlift
+
+
+```{r}
+#| include: false
+#| warning: false
+#| message: false
+
+
+# Selecting relevant columns
+plot1 <- data %>% 
+  select(sex, weight_class_kg, best3bench_kg, best3squat_kg, best3deadlift_kg)
+
+# Convert age_class to a factor with desired level order
+plot1$weight_class_kg <- factor(plot1$weight_class_kg, levels = c("30-39", "40-49", "50-59", "60-69", "70-79", "80-89", "90-99", "100-109", "110-129", "130-145", "150+"))
+
+# Now sort the dataframe
+plot1 <- plot1[order(plot1$weight_class_kg), ]
+
+# Calculate the average weight lifted by each age class and sex
+averages <- plot1 %>%
+  group_by(weight_class_kg, sex) %>%
+  summarise(
+    avg_bench_kg = mean(best3bench_kg),
+    avg_squat_kg = mean(best3squat_kg),
+    avg_deadlift_kg = mean(best3deadlift_kg)
+  )
+
+# Melt the data into long format
+melted_data <- reshape2::melt(averages, id.vars = c("weight_class_kg", "sex"), variable.name = "exercise")
+
+# Create separate plots for each sex category
+male_plot <- melted_data %>%
+  filter(sex == "Male") %>%
+  ggplot(aes(x = weight_class_kg, y = value, fill = exercise)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  labs(x = "Weight Class", y = "Average Weight Lifted (kg)", fill = "Exercise") +
+  ggtitle("Average Weight Lifted by Weight (Males)") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for better readability
+    axis.ticks.x = element_blank()  # Remove x-axis ticks
+  )
+
+female_plot <- melted_data %>%
+  filter(sex == "Female") %>%
+  ggplot(aes(x = weight_class_kg, y = value, fill = exercise)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  labs(x = "Weight Class", y = "Average Weight Lifted (kg)", fill = "Exercise") +
+  ggtitle("Average Weight Lifted by Weight (Females)") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for better readability
+    axis.ticks.x = element_blank()  # Remove x-axis ticks
+  )
+
 ```
 
 ```{r}
+#| label: fig-weight1
+#| fig-cap: Average Bench, Squat, and Deadlift based on Weight Class (Female)
 #| echo: false
-#| eval: true
-#| label: tbl-modelresults
-#| tbl-cap: "Explanatory models of flight time based on wing width and wing length"
-#| warning: false
 
-modelsummary::modelsummary(
-  list(
-    "First model" = first_model
-  ),
-  statistic = "mad",
-  fmt = 2
-)
+male_plot
+```
+
+
+```{r}
+#| label: fig-weight2
+#| fig-cap: Average Bench, Squat, and Deadlift based on Weight Class (Female)
+#| echo: false
+
+female_plot
 ```
 
 
 
+## Equipment Used, Bench, Squat, Deadlift
+
+```{r}
+#| include: false
+#| warning: false
+#| message: false
+
+
+# Selecting relevant columns
+plot1 <- data %>% 
+  select(sex, equipment, best3bench_kg, best3squat_kg, best3deadlift_kg)
+
+
+# Calculate the average weight lifted by each age class and sex
+averages <- plot1 %>%
+  group_by(equipment, sex) %>%
+  summarise(
+    avg_bench_kg = mean(best3bench_kg),
+    avg_squat_kg = mean(best3squat_kg),
+    avg_deadlift_kg = mean(best3deadlift_kg)
+  )
+
+# Melt the data into long format
+melted_data <- reshape2::melt(averages, id.vars = c("equipment", "sex"), variable.name = "exercise")
+
+# Create separate plots for each sex category
+male_plot <- melted_data %>%
+  filter(sex == "Male") %>%
+  ggplot(aes(x = equipment, y = value, fill = exercise)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  labs(x = "Equipment", y = "Average Weight Lifted  (kg)") +
+  ggtitle("Average Weight Lifted by Equipment (Males)") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for better readability
+    axis.ticks.x = element_blank()  # Remove x-axis ticks
+  )
+
+female_plot <- melted_data %>%
+  filter(sex == "Female") %>%
+  ggplot(aes(x = equipment, y = value, fill = exercise)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  labs(x = "Equipment", y = "Average Weight Lifted (kg)") +
+  ggtitle("Average Weight Lifted by Equipment (Females)") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for better readability
+    axis.ticks.x = element_blank()  # Remove x-axis ticks
+  )
+
+```
+
+
+
+```{r}
+#| label: fig-equipment1
+#| fig-cap: Average Bench, Squat, and Deadlift based on Equipment used (Female)
+#| echo: false
+
+male_plot
+```
+
+
+```{r}
+#| label: fig-equipment2
+#| fig-cap: Average Bench, Squat, and Deadlift based on Equipment used (Female)
+#| echo: false
+
+female_plot
+```
 
 # Discussion
 
@@ -169,47 +361,10 @@ In @fig-ppcheckandposteriorvsprior-1 we implement a posterior predictive check. 
 
 In @fig-ppcheckandposteriorvsprior-2 we compare the posterior with the prior. This shows... 
 
-```{r}
-#| eval: true
-#| echo: false
-#| message: false
-#| warning: false
-#| label: fig-ppcheckandposteriorvsprior
-#| layout-ncol: 2
-#| fig-cap: "Examining how the model fits, and is affected by, the data"
-#| fig-subcap: ["Posterior prediction check", "Comparing the posterior with the prior"]
-
-pp_check(first_model) +
-  theme_classic() +
-  theme(legend.position = "bottom")
-
-posterior_vs_prior(first_model) +
-  theme_minimal() +
-  scale_color_brewer(palette = "Set1") +
-  theme(legend.position = "bottom") +
-  coord_flip()
-```
 
 ## Diagnostics
 
-@fig-stanareyouokay-1 is a trace plot. It shows... This suggests...
 
-@fig-stanareyouokay-2 is a Rhat plot. It shows... This suggests...
-
-```{r}
-#| echo: false
-#| eval: true
-#| message: false
-#| warning: false
-#| label: fig-stanareyouokay
-#| fig-cap: "Checking the convergence of the MCMC algorithm"
-#| fig-subcap: ["Trace plot", "Rhat plot"]
-#| layout-ncol: 2
-
-plot(first_model, "trace")
-
-plot(first_model, "rhat")
-```
 
 
 
