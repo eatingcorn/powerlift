@@ -6,6 +6,9 @@ This repo provides students with a foundation for their own projects associated 
 
 To use this folder, click the green "Code" button", then "Download ZIP". Move the downloaded folder to where you want to work on your own computer, and then modify it to suit.
 
+## Obtaining the Raw Data Set
+
+https://openpowerlifting.gitlab.io/opl-csv/bulk-csv.html, download openpowerlifting-latest.zip, file of the raw dataset is "openpowerlifting-2024-04-06-e5e05aa2.csv"
 
 ## File Structure
 
