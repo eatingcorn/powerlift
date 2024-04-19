@@ -11,30 +11,6 @@ library(tidyverse)
 
 #### Functions to help simulate data ####
 
-# Function to calculate Wilks Score.
-calculate_wilks <- function(sex, bodyweight_kg, best3squat_kg, best3bench_kg, best3deadlift_kg) {
-  if(sex == "Male") {
-    a <- -216.0475144
-    b <- 16.2606339
-    c <- -0.002388645
-    d <- -0.00113732
-    e <- 7.01863E-06
-    f <- -1.291E-08
-  } else {
-    a <- 594.31747775582
-    b <- -27.23842536447
-    c <- 0.82112226871
-    d <- -0.00930733913
-    e <- 4.731582E-05
-    f <- -9.054E-08
-  }
-  
-  wilks_score <- (best3squat_kg + best3bench_kg + best3deadlift_kg) *
-    (500 /
-       (a + b * bodyweight_kg + c * bodyweight_kg^2 + d * bodyweight_kg^3 + e * bodyweight_kg^4 + f * bodyweight_kg^5))
-  
-  return(wilks_score)
-}
 
 # Function to map Age to an AgeClasses
 map_age_to_ageclass <- function(age) {
@@ -73,7 +49,9 @@ map_age_to_ageclass <- function(age) {
 
 # Function to map Bodyweight to an WeightClasses
 map_bodyweight_to_weightclass <- function(weight_class_kg) {
-  if (weight_class_kg <= 30) {
+  if (weight_class_kg <= 20) {
+    return("20-29")
+  } else if (weight_class_kg <= 30) {
     return("30-39")
   } else if (weight_class_kg <= 40) {
     return("40-49")
@@ -91,8 +69,12 @@ map_bodyweight_to_weightclass <- function(weight_class_kg) {
     return("100-109")
   } else if (weight_class_kg <= 110) {
     return("110-129")
-  } else {
+  } else if (weight_class_kg <= 130) {
     return("130-145")
+  } else if (weight_class_kg <= 150) {
+    return("150+")
+  } else {
+    return("Unknown")
   }
 }
 
@@ -103,7 +85,7 @@ set.seed(302)
 
 simulated_pl_data <- tibble (
   
-  sex = sample(x = c("Male", "Female", "Mixed"),
+  sex = sample(x = c("Male", "Female"),
                size = 10000,
                replace = TRUE),
   
@@ -116,21 +98,19 @@ simulated_pl_data <- tibble (
   
   bodyweight_kg = round(runif(10000, min = 30, max = 145), 1),
   
-  best3squat_kg = round(runif(10000, min = 50, max = 400), 1), # Sample Best 3 Squat between 50 and 400 kg
-  best3bench_kg = round(runif(10000, min = 20, max = 300), 1), # Sample Best 3 Bench between 20 and 300 kg
-  best3deadlift_kg = round(runif(10000, min = 60, max = 500), 1)) # Sample Best 3 Deadlift between 60 and 500 kg
+  total_kg = round(runif(10000, min = 50, max = 1200), 1) # Sample Best 3 Squat between 50 and 1200 kg
   
-simulated_pl_data$wilks <- mapply(calculate_wilks, 
-                                          simulated_pl_data$sex, 
-                                          simulated_pl_data$bodyweight_kg, 
-                                          simulated_pl_data$best3squat_kg, 
-                                          simulated_pl_data$best3bench_kg, 
-                                          simulated_pl_data$best3deadlift_kg)
+)
+  
 
 simulated_pl_data$age_class <- sapply(simulated_pl_data$age, map_age_to_ageclass)
 
 simulated_pl_data$weight_class_kg <- sapply(simulated_pl_data$bodyweight_kg, map_bodyweight_to_weightclass)
 
+simulated_pl_data$competitive <- ifelse(simulated_pl_data$total_kg >= 600, 1, 0)
+
+
+simulated_pl_data <- simulated_pl_data %>% select(competitive, sex, age_class, weight_class_kg, total_kg, equipment)
   
   
   
@@ -142,9 +122,8 @@ simulated_pl_data$weight_class_kg <- sapply(simulated_pl_data$bodyweight_kg, map
 nrow(simulated_pl_data) == 10000
 
 # Test to check the column names
-colnames(simulated_pl_data) == c("sex", "equipment", "age", "bodyweight_kg", 
-                                 "best3squat_kg", "best3bench_kg", "best3deadlift_kg",
-                                 "wilks", "age_class", "weight_class_kg")
+colnames(simulated_pl_data) == c("competitive", "sex", "age_class", 
+                                 "weight_class_kg", "total_kg", "equipment")
 # Test to check the age_class values
 simulated_pl_data$age_class %>% 
   unique() %>% sort()== c("13-15", "16-17", "18-19", "20-23",
@@ -154,9 +133,9 @@ simulated_pl_data$age_class %>%
 
 # Test to check the weight_class_kg values
 simulated_pl_data$weight_class_kg %>% 
-  unique() %>% sort() == c("100-109",   "110-129",   "130-145",   "30-39",
-                           "40-49", "50-59",   "60-69",   "70-79",
-                           "80-89",  "90-99")
+  unique() %>% sort() == c("100-109", "110-129", "130-145", "150+", 
+                           "30-39", "40-49", "50-59", "60-69", "70-79",
+                           "80-89",   "90-99" )
 
 # Test to check the equipment values
 simulated_pl_data$equipment %>% 
@@ -166,7 +145,7 @@ simulated_pl_data$equipment %>%
 
 # Test to check the sex
 simulated_pl_data$sex %>% 
-  unique() %>% sort() == c("Female", "Male", "Mixed")
+  unique() %>% sort() == c("Female", "Male")
 
 
 # Test to check for NA values in the data set

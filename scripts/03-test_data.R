@@ -18,9 +18,7 @@ pl_analysis_data <- read_parquet("data/analysis_data/powerlifting_analysis_data.
 
 
 # Test to check the column names
-colnames(pl_analysis_data) == c("sex", "equipment", "age", "age_class", "bodyweight_kg", "weight_class_kg",
-                                 "best3squat_kg", "best3bench_kg", "best3deadlift_kg", "total_kg",
-                                 "wilks")
+colnames(pl_analysis_data) == c("competitive", "sex", "equipment", "age_class", "weight_class_kg","total_kg" )
 
 # Test to check the AgeClass values
 pl_analysis_data$age_class %>% 
@@ -31,7 +29,7 @@ pl_analysis_data$age_class %>%
 
 # Test to check the WeightClassKg values
 pl_analysis_data$weight_class_kg %>% 
-  unique() %>% sort() == c("100-109",   "110-129",   "130-145", "150+"  ,"30-39",
+  unique() %>% sort() == c("100-109",   "110-129",   "130-145", "150+", "20-29", "30-39",
                            "40-49", "50-59",   "60-69",   "70-79",
                            "80-89",  "90-99")
 

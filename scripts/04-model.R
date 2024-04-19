@@ -1,37 +1,42 @@
 #### Preamble ####
-# Purpose: Models... [...UPDATE THIS...]
-# Author: Rohan Alexander [...UPDATE THIS...]
-# Date: 11 February 2023 [...UPDATE THIS...]
-# Contact: rohan.alexander@utoronto.ca [...UPDATE THIS...]
-# License: MIT
-# Pre-requisites: [...UPDATE THIS...]
-# Any other information needed? [...UPDATE THIS...]
+# Purpose: Models for the openpowerlifting dataset.
+# Author: Ricky Fung
+# Date: 14 April 2023
+# Contact: ricky.fung@mail.utoronto.ca
+# Pre-requisites: Run script "00-install_packages.R".
 
 
 #### Workspace setup ####
 library(tidyverse)
+library(arrow)
 library(rstanarm)
-
+library(modelsummary)
 #### Read data ####
-analysis_data <- read_csv("data/analysis_data/analysis_data.csv")
+analysis_data <- read_parquet("data/analysis_data/powerlifting_analysis_data.parquet")
 
 ### Model data ####
-first_model <-
-  stan_glm(
-    formula = flying_time ~ length + width,
-    data = analysis_data,
-    family = gaussian(),
-    prior = normal(location = 0, scale = 2.5, autoscale = TRUE),
-    prior_intercept = normal(location = 0, scale = 2.5, autoscale = TRUE),
-    prior_aux = exponential(rate = 1, autoscale = TRUE),
-    seed = 853
-  )
 
+set.seed(302)
+# Randomly sample observations to reduce the dataset size
+reduced_data <- analysis_data %>% 
+  sample_n(size = 15000)
+
+
+model <-
+    stan_glm(
+      formula = competitive ~ sex + age_class + weight_class_kg + equipment,
+      data = reduced_data,
+      family = binomial(link = "logit"),
+      prior = normal(location = 0, scale = 2.5, autoscale = TRUE),
+      prior_intercept = normal(location = 0, scale = 2.5, autoscale = TRUE),
+      seed = 302
+    )
 
 #### Save model ####
 saveRDS(
-  first_model,
-  file = "models/first_model.rds"
+  model,
+  file = "models/model.rds"
 )
+
 
 

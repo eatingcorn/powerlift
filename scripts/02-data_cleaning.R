@@ -23,39 +23,34 @@ map_weightclass_to_broader_category <- function(weight_class_kg) {
 }
 
 
-#### Clean data ####
+# Read raw data
 raw_data <- read_csv("data/raw_data/raw_powerlifting_data.csv")
 
-
-cleaned_data <- raw_data %>% clean_names() %>%
-  
-  # Rid of the non-tested and Disqualified individuals
+# Clean data
+cleaned_data <- raw_data %>%
+  clean_names() %>%
+  # Remove non-tested and disqualified individuals
   filter(!is.na(tested) & tested != "" & place != "DQ" & age_class != "12-May" & sex != "Mx") %>%
   
-  # Select columns for analysis
-  select(sex, equipment, age, age_class, 
-         bodyweight_kg, weight_class_kg, best3squat_kg, 
-         best3bench_kg, best3deadlift_kg, total_kg, wilks) %>%
-
-  
+  # Mutate total_kg to binary variable
   mutate(
     sex = case_when(
       sex == "F" ~ "Female",
-      sex == "M" ~ "Male",
+      sex == "M" ~ "Male"
     ),
-    # Apply the grouping to weight class
-    weight_class_kg = map_weightclass_to_broader_category(weight_class_kg)
-  ) %>% 
+    weight_class_kg = map_weightclass_to_broader_category(weight_class_kg),
+    competitive = ifelse(total_kg >= 600, 1, 0)
+  ) %>%
   
-  # Rid of rows that are missing information (empty)
+  # Select columns for analysis
+  select(competitive, sex, equipment, age_class, weight_class_kg, total_kg) %>% 
+  # Remove rows with missing information
   na.omit()
 
-#### Save data ####
-
-# Save as CSV
+# Save data as CSV
 write_csv(cleaned_data, "data/analysis_data/powerlifting_analysis_data.csv")
 
-# Save as Parquet
+# Save data as Parquet
 write_parquet(cleaned_data, "data/analysis_data/powerlifting_analysis_data.parquet")
 
 
