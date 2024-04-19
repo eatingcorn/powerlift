@@ -1,13 +1,12 @@
 ---
-title: "Exploring Performance Factors in Powerlifting"
-subtitle: "My subtitle if needed"
+title: "Key Determinants To Maximize Total Weight Lifted In Powerlifting"
 author: 
-  - First author
-  - Another author
+  - Ricky Fung
 thanks: "Code and data are available at: https://github.com/eatingcorn/powerlift"
 date: today
 date-format: long
-abstract: "..."
+abstract: "This paper examines the characteristics such as age, weight, and equipment usage observed in powerlifting meets from the years 1964 to 2024. A bayesian logistic regression model was created to determine whether the characteristics influence the competitiveness of a lift, specifically whether the lift is over or under 600kg. Results show that age group 24-34, weight class 110-129kg, and equipment usage of single-py, had a greater likelihood of a competitive lift. These findings suggest there are specific characteristics that are optimal for a lifters performance."
+
 format: pdf
 number-sections: true
 bibliography: references.bib
@@ -21,6 +20,12 @@ bibliography: references.bib
 library(tidyverse)
 library(arrow)
 library(knitr)
+library(rstanarm)
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(modelsummary)
+library(png)
 
 data <- read_parquet("../data/analysis_data/powerlifting_analysis_data.parquet")
 ```
@@ -36,7 +41,7 @@ data <- read_parquet("../data/analysis_data/powerlifting_analysis_data.parquet")
 
 ## Dataset
 
-The data set used in this paper is obtained from OpenPowerlifting (cite). The data is a compilation and standardization of meet data within the sport of powerlifting across an variety of different meets. For example, "World Powerlifting", "Internation Powerlifting Federation", "National Powerlifting Leauge", etc. Organizers of the meets, record their sex, age, weight and lifts performed by each competitor and this data is often made publicly available online.
+The data set used in this paper is obtained from OpenPowerlifting [@citeData]. The data is a compilation and standardization of meet data within the sport of powerlifting across an variety of different meets. For example, "World Powerlifting", "Internation Powerlifting Federation", "National Powerlifting Leauge", etc. Organizers of the meets, record their sex, age, weight and lifts performed by each competitor and this data is often made publicly available online.
 
 ```{r}
 #| label: tbl-dataset-preview
@@ -46,29 +51,28 @@ The data set used in this paper is obtained from OpenPowerlifting (cite). The da
 #| message: false
 
 data |> 
-  select(sex, age_class, weight_class_kg, best3bench_kg, best3squat_kg, best3deadlift_kg, total_kg, wilks) |>
-  head() |>
+  select(competitive, sex, age_class, weight_class_kg, total_kg) |>
+  head(10) |>
   kable()
 ```
 
-
 The dataset was filtered to contain only individuals that are tested and have not been disqualified to ensure the integrity of the data for the analysis. The majority of attributes in the original dataset were not employed, as the primary focus of this paper lies in analyzing the factors contributing to strength gains in powerlifting. The cleaned dataset contains 8 attributes:
 
-1. `sex` - Denotes the lifter's gender, (Male or Female).
-2. `age_class` - Denotes the lifter's age category.
-3. `weight_class_kg` - Denotes the lifter's weight category (in kilograms).
-4. `best3bench_kg`- Denotes the lifter's best bench press weight (out of 3 attempts, in kilograms).
-5. `equipment` - Denotes the lifter's equipment used in the lift (Wraps, Raw, Unlimited, Single-py, Multi-py).
-6. `best3squat_kg` -  Denotes the lifter's best squat weight (out of 3 attempts, in kilograms).
-7. `best3deadlift_kg` - Denotes the lifter's best deadlift weight (out of 3 attempts, in kilograms).
-8. `total_kg` - Denotes the lifter's total weight lifted based on the best 3 bench, squat, and deadlift.
-9. `wilks` - Denotes the lifter's Wilks score, which is calculated based on sex, weight, and total
-weight lifted.
+1.  `competitive` - Denotes the the competitiveness of the total lifted weight. (0 denotes \< 600kg, 1 denotes \>= 600kg)
+2.  `sex` - Denotes the lifter's gender, (Male or Female).
+3.  `age_class` - Denotes the lifter's age category.
+4.  `weight_class_kg` - Denotes the lifter's weight category (in kilograms).
+5.  `total_kg` - Denotes the sum of lifters best bench, squat, and deadlift in kilograms.
+6.  `equipment` - Denotes the lifter's equipment used in the lift (Wraps, Raw, Unlimited, Single-py, Multi-py).
 
 
-The `total_kg` attribute was chosen as it is the estimand in this paper. The `sex` attribute was necessary as there are strength differences between males and females, and averaging the lifts and wilks score separately by sex allows for a more accurate representation of the data. The attributes `age_class` and `weight_class_kg` were chosen as they correlate with an individual's lifting capacity. The `best3bench_kg`, `best3squat_kg`, `best3deadlift_kg`, and `wilks` attributes are necessary to visualize the increases and/or decreases in each lift based on the correlated attributes.
+The attribute `competitive` was introduced into the dataset as a binary variable, indicating the competitiveness of the total lifted weight, and it was incorporated within our logistic model. The attribute weight_class_kg was adjusted to represent a range of weights, aimed at condensing the x-axis values, as the original dataset contained approximately 120 different weight classes.
 
-The analysis of the data set in (section), will be carried out using the R programming language [@citeR] and packages; tidyverse [@citeTidy], arrow [@citeArrow], and dplyr [@citeDplyr], we were able create simulations, clean the dataset and write tests. The figures and tables are generated using ggplot2 [@citeGgplot2] and knitr [@citeKnitr].
+The `competitive` attribute was chosen as it is the estimand in this paper. The `total_kg` attribute are necessary to visualize the increases and/or decreases in each lift based on the correlated attributes. The attributes `sex`, `age_class` and `weight_class_kg` were chosen as they correlate with an individual's lifting capacity.
+
+The analysis of the data set in (section), will be carried out using the R programming language [@citeR] and packages; tidyverse [@citetidyverse], arrow [@citearrow], janitor [@citejanitor], and dplyr [@citedplyr], we were able create simulations, clean the dataset and write tests. The figures and tables are generated using ggplot2 [@citeGgplot2], knitr [@citeknitr], and png [@citepng]. Package [@citeshiny] was use to create interactive tables (See README).
+
+
 
 # Model
 
@@ -78,11 +82,12 @@ Here we briefly describe the Bayesian analysis model used to investigate... Back
 
 ## Model set-up
 
-....
+From @sec-result, we observe trends between the average total weight lifted and the attributes sex, age class, weight class, and equipment. We want to further this by investigating whether lifts are considered competitive or not based on the listed attributes. To do this we will create a Bayesian logistic regression model.
+
 
 \begin{align} 
 y_i|\mu_i, \sigma &\sim \mbox{Normal}(\mu_i, \sigma) \\
-\mu_i &= \beta_0 + \beta_1 \times sex_i + \beta_2 \times age_i + \beta_3 \times bodyweight_i + \beta_4 \dot equipment_i \\
+\mu_i &= \beta_0 + \beta_1 \times sex_i + \beta_2 \times age_class_i + \beta_3 \times weight_class_kg_i + \beta_4 \times equipment_i \\
 \beta_0 &\sim \mbox{Normal}(0, 2.5) \\
 \beta_1 &\sim \mbox{Normal}(0, 2.5) \\
 \beta_2 &\sim \mbox{Normal}(0, 2.5) \\
@@ -91,18 +96,19 @@ y_i|\mu_i, \sigma &\sim \mbox{Normal}(\mu_i, \sigma) \\
 \sigma &\sim \mbox{Exponential}(1)
 \end{align}
 
-....
+
+In these equations, $y_i$ represents the competitiveness of the lift (0 not competitive, 1 competitive), $\pi_i$ represents the probability of the $i$th observation being a competitive lift, $\beta_0$ represents the intercept (log-odds of a competitive lift where the other attributes are 0), $\beta_1$ represents the log-odds of a competitive lift depending on the sex, $\mbox{sex}_i$ represents the sex of the $i$th individual, $\beta_2$ represents how much the log-odds of the competitiveness depending on the age class of the lifter, $\mbox{age_class}_i$ represents the age class of the $i$th lifter, $\beta_3$ represents the log-odds of a competitive lift depending on the weight class of the lifter, and $\mbox{equipment}_i$ represents the equipment usage of the $i$th lifter.
 
 
 ### Model justification
 
-...
+The logistic regression model was chosen in this situation as the outcome of the variable of interest is binary. The logistic regression model also provides easily interpretable results in terms of odds ratios. This is particularly useful in understanding how each predictor variable (such as sex, age class, and weight class) influences the odds of a competitive lift. Other models were consider such as multiple linear regression model but due to the non linearity of some predictors, we decided to proceed with logistic regression. Since logistic does not assume a linear relationship between the predictor variables and the logit of the outcome.
 
+\newpage
 
-# Results
+# Results {#sec-result}
 
 ## Age Class, Bench, Squat, Deadlift
-
 
 ```{r}
 #| include: false
@@ -110,14 +116,9 @@ y_i|\mu_i, \sigma &\sim \mbox{Normal}(\mu_i, \sigma) \\
 #| message: false
 
 
-library(dplyr)
-library(ggplot2)
-library(reshape2)
-
-
 # Selecting relevant columns
 plot1 <- data %>% 
-  select(sex, age_class, best3bench_kg, best3squat_kg, best3deadlift_kg)
+  select(sex, age_class, total_kg)
 
 # Convert age_class to a factor with desired level order
 plot1$age_class <- factor(plot1$age_class, levels = c("5-12", "13-15", "16-17", "18-19", "20-23", "24-34", "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74", "75-79", "80-999"))
@@ -129,9 +130,7 @@ plot1 <- plot1[order(plot1$age_class), ]
 averages <- plot1 %>%
   group_by(age_class, sex) %>%
   summarise(
-    avg_bench_kg = mean(best3bench_kg),
-    avg_squat_kg = mean(best3squat_kg),
-    avg_deadlift_kg = mean(best3deadlift_kg)
+    avg_total_kg = mean(total_kg)
   )
 
 # Melt the data into long format
@@ -140,10 +139,9 @@ melted_data <- reshape2::melt(averages, id.vars = c("age_class", "sex"), variabl
 # Create separate plots for each sex category
 male_plot <- melted_data %>%
   filter(sex == "Male") %>%
-  ggplot(aes(x = age_class, y = value, fill = exercise)) +
+  ggplot(aes(x = age_class, y = value)) +
   geom_bar(stat = "identity", position = "dodge", width = 0.7) +
-  labs(x = "Age Class", y = "Average Weight Lifted (kg)", fill = "Exercise") +
-  ggtitle("Average Weight Lifted by Age Class (Males)") +
+  labs(x = "Age Class", y = "Average Total Weight Lifted (kg)") +
   theme_minimal() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for better readability
@@ -152,10 +150,9 @@ male_plot <- melted_data %>%
 
 female_plot <- melted_data %>%
   filter(sex == "Female") %>%
-  ggplot(aes(x = age_class, y = value, fill = exercise)) +
+  ggplot(aes(x = age_class, y = value)) +
   geom_bar(stat = "identity", position = "dodge", width = 0.7) +
-  labs(x = "Age Class", y = "Average Weight Lifted (kg)", fill = "Exercise") +
-  ggtitle("Average Weight Lifted by Age Class (Females)") +
+  labs(x = "Age Class", y = "Average Total Weight Lifted (kg)") +
   theme_minimal() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for better readability
@@ -166,21 +163,20 @@ female_plot <- melted_data %>%
 
 ```{r}
 #| label: fig-age1
-#| fig-cap: Average Bench, Squat, and Deadlift based on Age Class (Male)
+#| fig-cap: Average Best Bench, Squat, Deadlift based on Age Class
+#| fig-subcap: ["Male", "Female"]
 #| echo: false
+#| layout-ncol: 2
 
 male_plot
-```
-
-
-
-```{r}
-#| label: fig-age2
-#| fig-cap: Average Bench, Squat, and Deadlift based on Age Class (Female)
-#| echo: false
-
 female_plot
 ```
+
+@fig-age1 display age classes along the horizontal axis, representing the age ranges during which individuals are lifting weights and the vertical axis shows the average total weight lifted (bench, squat, and deadlift). 
+
+For males, the average total weight lifted across age classes demonstrates a steady increase from age class 5-12 to 35-39, peaking notably within the 35-39 age range. Subsequently, there's a gradual decrease observed as age progresses beyond this peak. For females, the average total weight lifted across age classes demonstrates a steady increase from age class 5-12 to 24-34, peaking notably within the 24-34 age range. Subsequently, there's a gradual decrease observed as age progresses beyond this peak.
+
+\newpage
 
 ## Weight Class, Bench, Squat, Deadlift
 
@@ -192,22 +188,20 @@ female_plot
 
 
 # Selecting relevant columns
-plot1 <- data %>% 
-  select(sex, weight_class_kg, best3bench_kg, best3squat_kg, best3deadlift_kg)
+plot2 <- data %>% 
+  select(sex, weight_class_kg, total_kg)
 
 # Convert age_class to a factor with desired level order
-plot1$weight_class_kg <- factor(plot1$weight_class_kg, levels = c("30-39", "40-49", "50-59", "60-69", "70-79", "80-89", "90-99", "100-109", "110-129", "130-145", "150+"))
+plot2$weight_class_kg <- factor(plot2$weight_class_kg, levels = c("30-39", "40-49", "50-59", "60-69", "70-79", "80-89", "90-99", "100-109", "110-129", "130-145", "150+"))
 
 # Now sort the dataframe
-plot1 <- plot1[order(plot1$weight_class_kg), ]
+plot2 <- plot2[order(plot2$weight_class_kg), ]
 
 # Calculate the average weight lifted by each age class and sex
-averages <- plot1 %>%
-  group_by(weight_class_kg, sex) %>%
+averages <- plot2 %>%
+  group_by(sex, weight_class_kg) %>%
   summarise(
-    avg_bench_kg = mean(best3bench_kg),
-    avg_squat_kg = mean(best3squat_kg),
-    avg_deadlift_kg = mean(best3deadlift_kg)
+    avg_total_kg = mean(total_kg)
   )
 
 # Melt the data into long format
@@ -216,10 +210,9 @@ melted_data <- reshape2::melt(averages, id.vars = c("weight_class_kg", "sex"), v
 # Create separate plots for each sex category
 male_plot <- melted_data %>%
   filter(sex == "Male") %>%
-  ggplot(aes(x = weight_class_kg, y = value, fill = exercise)) +
+  ggplot(aes(x = weight_class_kg, y = value)) +
   geom_bar(stat = "identity", position = "dodge", width = 0.7) +
-  labs(x = "Weight Class", y = "Average Weight Lifted (kg)", fill = "Exercise") +
-  ggtitle("Average Weight Lifted by Weight (Males)") +
+  labs(x = "Weight Class", y = "Average Total Weight Lifted (kg)") +
   theme_minimal() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for better readability
@@ -228,10 +221,9 @@ male_plot <- melted_data %>%
 
 female_plot <- melted_data %>%
   filter(sex == "Female") %>%
-  ggplot(aes(x = weight_class_kg, y = value, fill = exercise)) +
+  ggplot(aes(x = weight_class_kg, y = value)) +
   geom_bar(stat = "identity", position = "dodge", width = 0.7) +
-  labs(x = "Weight Class", y = "Average Weight Lifted (kg)", fill = "Exercise") +
-  ggtitle("Average Weight Lifted by Weight (Females)") +
+  labs(x = "Weight Class", y = "Average Total Weight Lifted (kg)") +
   theme_minimal() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for better readability
@@ -242,22 +234,19 @@ female_plot <- melted_data %>%
 
 ```{r}
 #| label: fig-weight1
-#| fig-cap: Average Bench, Squat, and Deadlift based on Weight Class (Female)
+#| fig-cap: Average Best Bench, Squat, Deadlift based on Weight Class
+#| fig-subcap: ["Male", "Female"]
 #| echo: false
+#| layout-ncol: 2
 
 male_plot
-```
-
-
-```{r}
-#| label: fig-weight2
-#| fig-cap: Average Bench, Squat, and Deadlift based on Weight Class (Female)
-#| echo: false
-
 female_plot
 ```
 
 
+@fig-weight1 display weight classes along the horizontal axis, representing the weight ranges during which individuals are lifting weights and the vertical axis shows the average total weight lifted (bench, squat, and deadlift). The average total weight lifted across weight classes represented by @fig-weight1 demonstrates a significant steady increase in the average total weight lifted from across weight classes for both male and female.
+
+\newpage
 
 ## Equipment Used, Bench, Squat, Deadlift
 
@@ -268,46 +257,41 @@ female_plot
 
 
 # Selecting relevant columns
-plot1 <- data %>% 
-  select(sex, equipment, best3bench_kg, best3squat_kg, best3deadlift_kg)
+plot3 <- data %>% 
+  select(equipment, total_kg, sex)
 
 
 # Calculate the average weight lifted by each age class and sex
-averages <- plot1 %>%
-  group_by(equipment, sex) %>%
+averages <- plot3 %>%
+  group_by(sex, equipment) %>%
   summarise(
-    avg_bench_kg = mean(best3bench_kg),
-    avg_squat_kg = mean(best3squat_kg),
-    avg_deadlift_kg = mean(best3deadlift_kg)
+    avg_total_kg = mean(total_kg)
   )
 
-# Melt the data into long format
-melted_data <- reshape2::melt(averages, id.vars = c("equipment", "sex"), variable.name = "exercise")
 
 # Create separate plots for each sex category
-male_plot <- melted_data %>%
+male_plot <- averages %>%
   filter(sex == "Male") %>%
-  ggplot(aes(x = equipment, y = value, fill = exercise)) +
+  ggplot(aes(x = equipment, y = avg_total_kg)) +
   geom_bar(stat = "identity", position = "dodge", width = 0.7) +
-  labs(x = "Equipment", y = "Average Weight Lifted  (kg)") +
-  ggtitle("Average Weight Lifted by Equipment (Males)") +
+  labs(x = "Equipment", y = "Average Total Weight Lifted  (kg)") +
   theme_minimal() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for better readability
     axis.ticks.x = element_blank()  # Remove x-axis ticks
   )
 
-female_plot <- melted_data %>%
+female_plot <- averages %>%
   filter(sex == "Female") %>%
-  ggplot(aes(x = equipment, y = value, fill = exercise)) +
+  ggplot(aes(x = equipment, y = avg_total_kg)) +
   geom_bar(stat = "identity", position = "dodge", width = 0.7) +
-  labs(x = "Equipment", y = "Average Weight Lifted (kg)") +
-  ggtitle("Average Weight Lifted by Equipment (Females)") +
+  labs(x = "Equipment", y = "Average Total Weight Lifted (kg)") +
   theme_minimal() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for better readability
     axis.ticks.x = element_blank()  # Remove x-axis ticks
   )
+
 
 ```
 
@@ -315,62 +299,80 @@ female_plot <- melted_data %>%
 
 ```{r}
 #| label: fig-equipment1
-#| fig-cap: Average Bench, Squat, and Deadlift based on Equipment used (Female)
+#| fig-cap: Average Best Bench, Squat, Deadlift based on Weight Class
+#| fig-subcap: ["Male", "Female"]
 #| echo: false
+#| layout-ncol: 2
 
 male_plot
-```
-
-
-```{r}
-#| label: fig-equipment2
-#| fig-cap: Average Bench, Squat, and Deadlift based on Equipment used (Female)
-#| echo: false
-
 female_plot
 ```
 
-# Discussion
 
-## First discussion point {#sec-first-point}
 
-If my paper were 10 pages, then should be be at least 2.5 pages. The discussion is a chance to show off what you know and what you learnt from all this. 
-
-## Second discussion point
-
-## Third discussion point
-
-## Weaknesses and next steps
-
-Weaknesses and next steps should also be included.
+@fig-equipment1 display Equipment usage along the horizontal axis, representing the equipment usage during which individuals are lifting weights and the vertical axis shows the average total weight lifted (bench, squat, and deadlift). The average total weight lifted across different equipment usage categories, illustrated in @fig-equipment1, indicates a notable increase in average total weight lifted for equipment multi-ply, unlimited, and single-ply, when compared to instances where no equipment is used. Conversely, there is minimal change observed with wraps.
 
 \newpage
 
-\appendix
-
-# Appendix {-}
+## Model Results
 
 
-# Additional data details
-
-# Model details {#sec-model-details}
-
-## Posterior predictive check
-
-In @fig-ppcheckandposteriorvsprior-1 we implement a posterior predictive check. This shows...
-
-In @fig-ppcheckandposteriorvsprior-2 we compare the posterior with the prior. This shows... 
+```{r}
+#| label: fig-x
+#| fig-cap: 90% credibility interval for coefficient estimates of predictors of competitive lifts
+#| echo: false
 
 
-## Diagnostics
+img <- readPNG('cred-interval.png')
+grid::grid.raster(img)
+
+```
 
 
 
+```{r}
+#| label: table-x
+#| fig-cap: The likelihood of a individual to perform a competitive lift
+#| echo: false
+
+img <- readPNG('likelihood.png')
+grid::grid.raster(img)
+
+```
+
+
+
+
+@table-x summary results show has an intercept of −8.356, this indicates that baseline performance when all other variables are zero is at -8.356. Being male is associated with a lift increase of 4.245 units, this indicates men are more likely to perform a competitive lift (>= 600kg total weight). Among age groups, the most substantial increase associated with lift is observed in the 20-23 age category, with a coefficient of 3.595 units. This suggests that lifters within this age bracket demonstrate notably enhanced performance. In terms of weight categories, the 110-129kg group displays a modest lift increase of 0.172 units, suggesting a slight advantage in achieving competitive lifts. Different equipment types also influence performance. Notably, specific equipment types show a positive impact on lift performance, with Single-ply and Unlimited gear having coefficients of 1.102 and 0.971 units, respectively.
+
+
+The model plot (@fig-x) provides valuable insights into the uncertainty associated with the model estimates. The positive credible interval for the coefficient of the males suggests that being male is likely associated with a statistically significant increase in competitive lifting performance. Age categories such as 50-54, 70-74, 75-79, and 80+ exhibit negative credible intervals, indicating that the estimated performance for these age groups is likely lower than the point estimates provided in the model results. This suggests a level of uncertainty in the effect of age on competitive lifting performance in these age brackets. Similarly, the weight class 30-39 kg and greater displays a negative credible interval, suggesting that the estimated performance for this weight category may be lower than the point estimate provided in the model.
+
+
+# Discussion
+
+As evidence by the results, specific characteristics influence the strength of an individual. Specifically age classes, weight classes, and equipment usage effect the strength of an individual.
+
+## Age, Weight, and Equipment Influence The Performance of Lifts.
+
+@fig-age1 reveals that men achieve the highest total kilograms lifted (sum of bench, squat, and deadlift) between ages 35 and 39, followed by a steady decrease as the individual ages. Females achieve the highest total kilograms lifted between ages 24-34, followed by a steady decrease as the individual ages. This indicates that the peak performance for males and females of total kilograms lifted occurs during these age ranges. @fig-weight1 reveals that men and women achieve higher total kilograms lifted (sum of bench, squat, and deadlift) the greater the weight. It suggests that individuals with higher body weights tend to achieve greater total kilograms lifted across the three main lifts. @fig-equipment1 reveals that both men and women achieve an increase in total kilograms lifted, particularly with equipment types such as multi-ply, unlimited, and single-ply. This suggests that the use of equipment not only enhances safety but also boosts strength. Understanding these relationships can inform training strategies tailored to maximize performance, longevity, and individualized optimization.
+
+
+## Weaknesses
+
+A weakness in this paper, is the reduction of the analysis dataset. The analysis dataset was reduced from 1450643 to 15000 to reduce the run time to create the @table-x, @fig-x. By limiting the analysis to a smaller subset of data, the paper may fail to capture the full variability that may be presented in a larger dataset. Consequently, the conclusions drawn from the reduced dataset may not accurately reflect the estimates and increase the uncertainty surrounding the model coefficients, confidence intervals.
+
+Another weakness in this paper is how surface level it is as paper mainly focuses on basic statistics such as age, weight, and equipment usage. They play significant roles in influencing lift performance, but numerous other factors also can also influence. For example, years of training, years of competing, duration of training sessions, etc. If more advanced statistics were used in this analysis, they could offer deeper insights into the relationships between various factors and lifting performance. 
+
+
+
+## Next Steps
+
+An appropriate next step in this analysis is to compare the increase in total weight lifted with various scoring systems, such as the Wilks score, GL points, DOTS, and others. Through this comparison, we can identify correlations and discrepancies between the performance metrics used and predict the rankings, thus gaining a deeper understanding of how different scoring systems assess lifting performance.
 
 
 \newpage
 
 
 # References
-
 
