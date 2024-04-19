@@ -6,7 +6,6 @@ thanks: "Code and data are available at: https://github.com/eatingcorn/powerlift
 date: today
 date-format: long
 abstract: "This paper examines the characteristics such as age, weight, and equipment usage observed in powerlifting meets from the years 1964 to 2024. A bayesian logistic regression model was created to determine whether the characteristics influence the competitiveness of a lift, specifically whether the lift is over or under 600kg. Results show that age group 24-34, weight class 110-129kg, and equipment usage of single-py, had a greater likelihood of a competitive lift. These findings suggest there are specific characteristics that are optimal for a lifters performance."
-
 format: pdf
 number-sections: true
 bibliography: references.bib
@@ -20,14 +19,15 @@ bibliography: references.bib
 library(tidyverse)
 library(arrow)
 library(knitr)
-library(rstanarm)
 library(dplyr)
+#library(rstanarm) caused Render Problems
+#library(modelsummary) caused Render Problems
 library(ggplot2)
 library(reshape2)
-library(modelsummary)
 library(png)
 
-data <- read_parquet("../data/analysis_data/powerlifting_analysis_data.parquet")
+# model <- readRDS("../models/model.rds") caused Render Problems
+data <- read_csv("../data/analysis_data/powerlifting_analysis_data.csv")
 ```
 
 
@@ -68,17 +68,13 @@ The dataset was filtered to contain only individuals that are tested and have no
 
 The attribute `competitive` was introduced into the dataset as a binary variable, indicating the competitiveness of the total lifted weight, and it was incorporated within our logistic model. The attribute weight_class_kg was adjusted to represent a range of weights, aimed at condensing the x-axis values, as the original dataset contained approximately 120 different weight classes.
 
-The `competitive` attribute was chosen as it is the estimand in this paper. The `total_kg` attribute are necessary to visualize the increases and/or decreases in each lift based on the correlated attributes. The attributes `sex`, `age_class` and `weight_class_kg` were chosen as they correlate with an individual's lifting capacity.
+The `competitive` attribute was chosen as it is the estimated in this paper. The `total_kg` attribute are necessary to visualize the increases and/or decreases in each lift based on the correlated attributes. The attributes `sex`, `age_class` and `weight_class_kg` were chosen as they correlate with an individual's lifting capacity.
 
-The analysis of the data set in (section), will be carried out using the R programming language [@citeR] and packages; tidyverse [@citetidyverse], arrow [@citearrow], janitor [@citejanitor], and dplyr [@citedplyr], we were able create simulations, clean the dataset and write tests. The figures and tables are generated using ggplot2 [@citeGgplot2], knitr [@citeknitr], and png [@citepng]. Package [@citeshiny] was use to create interactive tables (See README).
+The analysis of the data set in (@sec-result), will be carried out using the R programming language [@citeR] and packages; tidyverse [@citetidyverse], arrow [@citearrow], janitor [@citejanitor], and dplyr [@citedplyr], we were able create simulations, clean the dataset and write tests. The figures and tables are generated using ggplot2 [@citeGgplot2], knitr [@citeknitr], and png [@citepng]. Package shiny [@citeshiny] was use to create interactive tables (See README).
 
 
 
 # Model
-
-The goal of our modelling strategy is twofold. Firstly,...
-
-Here we briefly describe the Bayesian analysis model used to investigate... Background details and diagnostics are included in [Appendix -@sec-model-details].
 
 ## Model set-up
 
@@ -87,7 +83,7 @@ From @sec-result, we observe trends between the average total weight lifted and 
 
 \begin{align} 
 y_i|\mu_i, \sigma &\sim \mbox{Normal}(\mu_i, \sigma) \\
-\mu_i &= \beta_0 + \beta_1 \times sex_i + \beta_2 \times age_class_i + \beta_3 \times weight_class_kg_i + \beta_4 \times equipment_i \\
+\mu_i &= \beta_0 + \beta_1 \times sex_i + \beta_2 \times age\_class_i + \beta_3 \times weight\_class\_kg_i + \beta_4 \times equipment_i \\
 \beta_0 &\sim \mbox{Normal}(0, 2.5) \\
 \beta_1 &\sim \mbox{Normal}(0, 2.5) \\
 \beta_2 &\sim \mbox{Normal}(0, 2.5) \\
@@ -97,7 +93,8 @@ y_i|\mu_i, \sigma &\sim \mbox{Normal}(\mu_i, \sigma) \\
 \end{align}
 
 
-In these equations, $y_i$ represents the competitiveness of the lift (0 not competitive, 1 competitive), $\pi_i$ represents the probability of the $i$th observation being a competitive lift, $\beta_0$ represents the intercept (log-odds of a competitive lift where the other attributes are 0), $\beta_1$ represents the log-odds of a competitive lift depending on the sex, $\mbox{sex}_i$ represents the sex of the $i$th individual, $\beta_2$ represents how much the log-odds of the competitiveness depending on the age class of the lifter, $\mbox{age_class}_i$ represents the age class of the $i$th lifter, $\beta_3$ represents the log-odds of a competitive lift depending on the weight class of the lifter, and $\mbox{equipment}_i$ represents the equipment usage of the $i$th lifter.
+In these equations, $y_i$ represents the competitiveness of the lift (0 not competitive, 1 competitive), $\pi_i$ represents the probability of the $i$th observation being a competitive lift, $\beta_0$ represents the intercept (log-odds of a competitive lift where the other attributes are 0), $\beta_1$ represents the log-odds of a competitive lift depending on the sex, $\mbox{sex}_i$ represents the sex of the $i$th individual, $\beta_2$ represents how much the log-odds of the competitiveness depending on the age class of the lifter, $\mbox{age\_class}_i$ represents the age class of the $i$th lifter, $\beta_3$ represents the log-odds of a competitive lift depending on the weight class of the lifter, and $\mbox{equipment}_i$ represents the equipment usage of the $i$th lifter.
+
 
 
 ### Model justification
@@ -108,7 +105,7 @@ The logistic regression model was chosen in this situation as the outcome of the
 
 # Results {#sec-result}
 
-## Age Class, Bench, Squat, Deadlift
+## Age Class and Total Weight Lifted (Kg)
 
 ```{r}
 #| include: false
@@ -137,7 +134,7 @@ averages <- plot1 %>%
 melted_data <- reshape2::melt(averages, id.vars = c("age_class", "sex"), variable.name = "exercise")
 
 # Create separate plots for each sex category
-male_plot <- melted_data %>%
+male_plot1 <- melted_data %>%
   filter(sex == "Male") %>%
   ggplot(aes(x = age_class, y = value)) +
   geom_bar(stat = "identity", position = "dodge", width = 0.7) +
@@ -148,7 +145,7 @@ male_plot <- melted_data %>%
     axis.ticks.x = element_blank()  # Remove x-axis ticks
   )
 
-female_plot <- melted_data %>%
+female_plot1 <- melted_data %>%
   filter(sex == "Female") %>%
   ggplot(aes(x = age_class, y = value)) +
   geom_bar(stat = "identity", position = "dodge", width = 0.7) +
@@ -168,17 +165,18 @@ female_plot <- melted_data %>%
 #| echo: false
 #| layout-ncol: 2
 
-male_plot
-female_plot
+male_plot1
+female_plot1
 ```
 
 @fig-age1 display age classes along the horizontal axis, representing the age ranges during which individuals are lifting weights and the vertical axis shows the average total weight lifted (bench, squat, and deadlift). 
 
 For males, the average total weight lifted across age classes demonstrates a steady increase from age class 5-12 to 35-39, peaking notably within the 35-39 age range. Subsequently, there's a gradual decrease observed as age progresses beyond this peak. For females, the average total weight lifted across age classes demonstrates a steady increase from age class 5-12 to 24-34, peaking notably within the 24-34 age range. Subsequently, there's a gradual decrease observed as age progresses beyond this peak.
 
+
 \newpage
 
-## Weight Class, Bench, Squat, Deadlift
+## Weight Class and Total Weight Lifted (Kg)
 
 
 ```{r}
@@ -248,7 +246,7 @@ female_plot
 
 \newpage
 
-## Equipment Used, Bench, Squat, Deadlift
+## Equipment Used and Total Weight Lifted (Kg)
 
 ```{r}
 #| include: false
@@ -317,6 +315,45 @@ female_plot
 ## Model Results
 
 
+
+```{r}
+#| label: tbl-x
+#| tbl-cap: The likelihood of a individual to perform a competitive lift
+#| echo: false
+
+coefficients <- data.frame(
+  Variable = c("(Intercept)", "sexMale", "age_class16-17", "age_class18-19", "age_class20-23", "age_class24-34", 
+               "age_class35-39", "age_class40-44", "age_class45-49", "age_class5-12", "age_class50-54", 
+               "age_class55-59", "age_class60-64", "age_class65-69", "age_class70-74", "age_class75-79", 
+               "age_class80-999", "weight_class_kg110-129", "weight_class_kg130-145", "weight_class_kg30-39", 
+               "weight_class_kg40-49", "weight_class_kg50-59", "weight_class_kg60-69", "weight_class_kg70-79", 
+               "weight_class_kg80-89", "weight_class_kg90-99", "equipmentRaw", "equipmentSingle-ply", 
+               "equipmentUnlimited", "equipmentWraps", "Num.Obs.", "R2", "Log.Lik.", "ELPD", "ELPD s.e.", 
+               "LOOIC", "LOOIC s.e.", "WAIC", "RMSE"),
+  Coefficient = c(-7.965, 4.286, 0.673, 2.152, 3.245, 3.056, 2.514, 2.152, 2.094, -22.126, 1.285, 1.053, 
+                  0.095, -1.616, -20.635, -33.716, -41.403, 0.039, -0.124, -46.359, -11.014, -3.885, -2.587, 
+                  -1.789, -0.972, -0.429, 0.087, 1.229, 1.204, 1.088, 15000, 0.265, -4542.366, -4567.8, 61.1, 
+                  9135.5, 122.1, 9134.9, 0.31),
+  SE = c(0.642, 0.421, 0.441, 0.414, 0.417, 0.418, 0.429, 0.422, 0.43, 21.122, 0.452, 0.481, 0.553, 1.219, 
+         16.971, 30.229, 36.204, 0.081, 0.214, 44.191, 7.501, 0.376, 0.149, 0.107, 0.079, 0.078, 0.209, 0.204, 
+         0.415, 0.235, NA, NA, NA, NA, NA, NA, NA, NA, NA)
+)
+
+# Print the table
+kable(coefficients, align = c("l", "c", "c"), 
+      col.names = c("Variable", "Coefficient", "SE"),
+      caption = "A Competitive Lift")
+
+
+# modelsummary(
+#  list("A Competitive Lift" = model),
+#  statistic = "mad"
+# )
+# Instead of this, I replaced it with the table above, which matches the modelsummary. Avoided modelsummary as it caused rendering issues.
+
+```
+
+
 ```{r}
 #| label: fig-x
 #| fig-cap: 90% credibility interval for coefficient estimates of predictors of competitive lifts
@@ -326,27 +363,18 @@ female_plot
 img <- readPNG('cred-interval.png')
 grid::grid.raster(img)
 
-```
-
-
-
-```{r}
-#| label: table-x
-#| fig-cap: The likelihood of a individual to perform a competitive lift
-#| echo: false
-
-img <- readPNG('likelihood.png')
-grid::grid.raster(img)
-
+# modelplot(model, conf_level = 0.9) +
+#  labs(x = "90 per cent credible interval")
+# Replaced it with the img, caused rendering issues.
 ```
 
 
 
 
-@table-x summary results show has an intercept of −8.356, this indicates that baseline performance when all other variables are zero is at -8.356. Being male is associated with a lift increase of 4.245 units, this indicates men are more likely to perform a competitive lift (>= 600kg total weight). Among age groups, the most substantial increase associated with lift is observed in the 20-23 age category, with a coefficient of 3.595 units. This suggests that lifters within this age bracket demonstrate notably enhanced performance. In terms of weight categories, the 110-129kg group displays a modest lift increase of 0.172 units, suggesting a slight advantage in achieving competitive lifts. Different equipment types also influence performance. Notably, specific equipment types show a positive impact on lift performance, with Single-ply and Unlimited gear having coefficients of 1.102 and 0.971 units, respectively.
+@tbl-x summary results show has an intercept of −7.965, this indicates that baseline performance when all other variables are zero is at −7.965. Being male is associated with a lift increase of 4.286 units, this indicates men are more likely to perform a competitive lift (>= 600kg total weight). Among age groups, the most substantial increase associated with lift is observed in the 20-23 age category, with a coefficient of 3.245 units. This suggests that lifters within this age bracket demonstrate notably enhanced performance. In terms of weight categories, the 110-129kg group displays a modest lift increase of 0.039 units, suggesting a slight advantage in achieving competitive lifts. Different equipment types also influence performance. Notably, specific equipment types show a positive impact on lift performance, with Single-ply and Unlimited gear having coefficients of 1.229 and 1.204 units, respectively.
 
 
-The model plot (@fig-x) provides valuable insights into the uncertainty associated with the model estimates. The positive credible interval for the coefficient of the males suggests that being male is likely associated with a statistically significant increase in competitive lifting performance. Age categories such as 50-54, 70-74, 75-79, and 80+ exhibit negative credible intervals, indicating that the estimated performance for these age groups is likely lower than the point estimates provided in the model results. This suggests a level of uncertainty in the effect of age on competitive lifting performance in these age brackets. Similarly, the weight class 30-39 kg and greater displays a negative credible interval, suggesting that the estimated performance for this weight category may be lower than the point estimate provided in the model.
+@fig-x provides valuable insights into the uncertainty associated with the model estimates. The positive credible interval for the coefficient of the males suggests that being male is likely associated with a statistically significant increase in competitive lifting performance. Age categories such as 50-54, 70-74, 75-79, and 80+ exhibit negative credible intervals, indicating that the estimated performance for these age groups is likely lower than the point estimates provided in the model results. This suggests a level of uncertainty in the effect of age on competitive lifting performance in these age brackets. Similarly, the weight class 30-39 kg and greater displays a negative credible interval, suggesting that the estimated performance for this weight category may be lower than the point estimate provided in the model.
 
 
 # Discussion
@@ -375,4 +403,3 @@ An appropriate next step in this analysis is to compare the increase in total we
 
 
 # References
-
